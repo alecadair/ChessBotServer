@@ -22,8 +22,16 @@ using namespace std;
 
 int pipes[2][2];
 int socket_fd;
-
+pid_t stockfish_pid;
 struct sockaddr_in addr;
+
+/*Handle ctrl-c to shut down stockfish on background thread*/
+void SIGINT_handler(int sig_num){
+    kill(stockfish_pid, SIGTERM);
+    cout << "SIGTERM received and sent to stockfish" << endl;
+    exit(EXIT_SUCCESS);
+}
+
 /*
  * Create, connect, and bind socket and return socket's fd for listenting on.
  */
@@ -52,7 +60,7 @@ int create_socket(pid_t stockfish_pid){
         perror("socket accept failed");
     }
     cout << "connection accepted killing stockfish" << endl;
-    kill(stockfish_pid, SIGKILL);
+    kill(stockfish_pid, SIGTERM);
     cout << "stockfish killed" << endl;
     // can now read from socket
 
@@ -63,12 +71,14 @@ void service_uci_command(){
 }
 
 int main(){
-    pid_t stockfish_pid;
+    //pid_t stockfish_pid;
 
     int server_pipefd[2], stockfish_pipefd[2];
-
+   
     pipe(pipes[SERVER_READ_PIPE]);
     pipe(pipes[SERVER_WRITE_PIPE]);
+    
+    signal(SIGINT, SIGINT_handler);  
 
     if((stockfish_pid = fork())== 0){
         dup2(STOCKFISH_READ_FD, STDIN_FILENO);
